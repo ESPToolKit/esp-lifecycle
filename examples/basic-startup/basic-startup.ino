@@ -12,6 +12,9 @@ void setup() {
 
     LifecycleConfig config{};
     config.worker = &worker;
+    config.enableParallelInit = true;
+    config.enableParallelDeinit = true;
+    config.enableParallelReinit = true;
     config.onInitStarted = []() { Serial.println("init started"); };
     config.onReady = []() { Serial.println("running"); };
     config.onInitFailed = []() { Serial.println("init failed"); };
@@ -19,24 +22,21 @@ void setup() {
     lifecycle.configure(config);
     lifecycle.init({"core", "network"});
 
-    lifecycle.addTo("core", "logger", []() { return true; }, []() { return true; });
-    lifecycle.addTo("core", "storage", []() { return true; }, []() { return true; }).after("logger");
+    lifecycle.addTo("core", "logger", []() { return true; }, []() { return true; }).parallelSafe();
+    lifecycle.addTo("core", "storage", []() { return true; }, []() { return true; });
     lifecycle.addTo("network", "wifi", []() { return true; }, []() { return true; }).after("storage");
 
-    LifecycleResult buildResult = lifecycle.build();
-    if( !buildResult.ok ){
-        Serial.println("build failed");
+    if( !lifecycle.start() ){
+        Serial.println("start failed");
         return;
     }
 
-    LifecycleResult initResult = lifecycle.initialize();
-    if( !initResult.ok ){
-        Serial.println("initialize failed");
-        return;
-    }
+    JsonDocument snapshot = lifecycle.snapshotJson();
+    serializeJson(snapshot, Serial);
+    Serial.println();
 
     delay(1000);
-    (void)lifecycle.deinitialize();
+    lifecycle.stop();
 }
 
 void loop() {

@@ -19,6 +19,9 @@ void setup() {
 
     LifecycleConfig config{};
     config.worker = &worker;
+    config.enableParallelInit = true;
+    config.enableParallelDeinit = true;
+    config.enableParallelReinit = true;
     config.onSnapshot = [](const LifecycleSnapshot& snapshot) {
         Serial.printf("state=%d active=%s completed=%u/%u\n",
                       static_cast<int>(snapshot.state),
@@ -28,10 +31,11 @@ void setup() {
     };
 
     lifecycle.configure(config);
-    lifecycle.init({"core", "network"});
+    lifecycle.init({"core", "network", "services"});
 
     lifecycle.addTo("core", "logger", []() { return true; }, []() { return true; }).reloadScope(0x01);
     lifecycle.addTo("network", "wifi", []() { return true; }, []() { return true; }).after("logger").reloadScope(0x02);
+    lifecycle.addTo("services", "api", []() { return true; }, []() { return true; }).after("wifi").reloadScope(0x04);
 
     if( !lifecycle.startScopeListener(
             eventBus,
@@ -46,11 +50,16 @@ void setup() {
         Serial.println("scope listener failed");
     }
 
-    (void)lifecycle.build();
-    (void)lifecycle.initialize();
+    if( !lifecycle.start() ){
+        Serial.println("start failed");
+        return;
+    }
 
-    uint32_t mask = 0x03;
+    uint32_t mask = 0x02;  // reinit wifi + dependent services + required dependencies
     (void)eventBus.post(EVENT_RELOAD_SCOPE, &mask);
+
+    delay(1000);
+    (void)lifecycle.deinitializeByScopeMask(0x01);  // deinit logger + dependents
 }
 
 void loop() {

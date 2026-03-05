@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -9,6 +10,10 @@
 #include <freertos/FreeRTOS.h>
 #else
 using TickType_t = uint32_t;
+#endif
+
+#ifndef pdMS_TO_TICKS
+#define pdMS_TO_TICKS(ms) (ms)
 #endif
 
 #include "ESPWorker.h"
@@ -68,6 +73,12 @@ struct LifecycleSnapshot {
 struct LifecycleConfig {
     ESPWorker* worker = nullptr;
     uint32_t defaultStepTimeoutMs = 3000;
+    TickType_t waitTicks = pdMS_TO_TICKS(500);
+    const char* workerName = "lifecycle-flow";
+    size_t workerStackSizeBytes = 6 * 1024;
+    bool enableParallelInit = false;
+    bool enableParallelDeinit = false;
+    bool enableParallelReinit = false;
     bool rollbackOnInitFailure = true;
     bool continueTeardownOnFailure = false;
     uint16_t maxNodes = 64;
@@ -95,6 +106,7 @@ struct LifecycleNodeDefinition {
     uint32_t timeoutMs = 0;
     uint32_t reloadScopeMask = 0;
     bool optional = false;
+    bool parallelSafe = false;
     std::vector<std::string> dependenciesByName;
     std::vector<std::string> dependentsByName;
     std::vector<size_t> dependencyIndexes;

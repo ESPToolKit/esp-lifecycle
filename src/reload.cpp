@@ -3,6 +3,7 @@
 #include "ESPEventBus.h"
 
 #include <chrono>
+#include <string>
 #include <thread>
 #include <utility>
 
@@ -101,7 +102,12 @@ void ESPLifecycle::scheduleScopeReinitialize(uint32_t scopeMask) {
     }
 
     WorkerConfig workerConfig{};
-    workerConfig.name = "lifecycle-reload";
+    workerConfig.stackSizeBytes = config.workerStackSizeBytes;
+    if( config.workerName != nullptr ){
+        workerConfig.name = std::string(config.workerName) + "-reload";
+    } else {
+        workerConfig.name = "lifecycle-reload";
+    }
 
     WorkerResult spawnResult = config.worker->spawnExt(
         [this]() {
@@ -154,7 +160,12 @@ void ESPLifecycle::listenerWorkerLoop() {
             listenerWorkerRunning = true;
             if( config.worker != nullptr ){
                 WorkerConfig workerConfig{};
-                workerConfig.name = "lifecycle-reload";
+                workerConfig.stackSizeBytes = config.workerStackSizeBytes;
+                if( config.workerName != nullptr ){
+                    workerConfig.name = std::string(config.workerName) + "-reload";
+                } else {
+                    workerConfig.name = "lifecycle-reload";
+                }
                 (void)config.worker->spawnExt([this]() { listenerWorkerLoop(); }, workerConfig);
             } else {
                 listenerWorkerRunning = false;

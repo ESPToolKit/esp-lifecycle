@@ -1,18 +1,20 @@
 # ESPLifecycle
 
-ESPLifecycle is a standalone ESPToolKit library for deterministic startup, teardown, and scoped reinitialization of ESP32 app subsystems.
+ESPLifecycle is the ESPToolKit lifecycle orchestrator for deterministic init, deinit, and scoped reinit with ESPStartup-like fluent registration.
 
 ## CI / Release / License
 [![CI](https://github.com/ESPToolKit/esp-lifecycle/actions/workflows/ci.yml/badge.svg)](https://github.com/ESPToolKit/esp-lifecycle/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/ESPToolKit/esp-lifecycle?sort=semver)](https://github.com/ESPToolKit/esp-lifecycle/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
 
-## Purpose
-Use ESPLifecycle when you need:
-- deterministic boot order with dependency validation,
-- explicit teardown (`deinitialize()`),
-- scoped reloads (`reinitializeByScopeMask(...)`, `reinitializeByNodeNames(...)`),
-- state snapshots for websocket/UI status updates.
+## Features
+- Section-based orchestration with dependency validation (`after` / `before`).
+- Deterministic `initialize()`, `deinitialize()`, `reinitialize*()`.
+- Scoped deinit/reinit closure with dependency correctness.
+- Optional parallel waves for init, deinit, and reinit.
+- Deferred sections with readiness gates.
+- Snapshot callback + direct `snapshotJson()` helper (ArduinoJson V7).
+- Optional scope listener with 25ms coalescing.
 
 ## Installation
 - PlatformIO: add `https://github.com/ESPToolKit/esp-lifecycle.git` to `lib_deps`.
@@ -28,7 +30,7 @@ Dependencies:
 #include <ESPLifecycle.h>
 ```
 
-## Quick Start (Fluent API)
+## Quick Start (ESPStartup-like)
 ```cpp
 #include <ESPLifecycle.h>
 #include <ESPWorker.h>
@@ -41,26 +43,21 @@ void setup() {
 
     LifecycleConfig cfg{};
     cfg.worker = &worker;
-    cfg.onReady = []() { Serial.println("Lifecycle ready"); };
-    cfg.onInitFailed = []() { Serial.println("Lifecycle failed"); };
-    cfg.onSnapshot = [](const LifecycleSnapshot& s) {
-        Serial.printf("state=%d completed=%u/%u\n", static_cast<int>(s.state), s.completed, s.total);
-    };
+    cfg.enableParallelInit = true;
+    cfg.enableParallelDeinit = true;
+    cfg.enableParallelReinit = true;
+    cfg.onReady = []() { Serial.println("ready"); };
 
     lifecycle.configure(cfg);
-    lifecycle.init({"core", "network", "services"});
+    lifecycle.init({"core", "network"});
 
-    lifecycle.addTo("core", "logger", []() { return true; }, []() { return true; });
-    lifecycle.addTo("core", "storage", []() { return true; }, []() { return true; }).after("logger");
-    lifecycle.addTo("network", "wifi", []() { return true; }, []() { return true; }).after("storage");
-    lifecycle.addTo("services", "api", []() { return true; }, []() { return true; }).after("wifi");
+    lifecycle.addTo("core", "logger", []() { return true; }, []() { return true; }).parallelSafe();
+    lifecycle.addTo("core", "storage", []() { return true; }, []() { return true; });
+    lifecycle.addTo("network", "wifi", []() { return true; }, []() { return true; }).after("logger");
 
-    LifecycleResult buildResult = lifecycle.build();
-    if (!buildResult.ok) {
-        return;
+    if (!lifecycle.start()) {
+        Serial.println("lifecycle start failed");
     }
-
-    (void)lifecycle.initialize();
 }
 ```
 
@@ -74,78 +71,53 @@ lifecycle.section("services")
     );
 ```
 
-## Teardown and Reinit
+## Scope Semantics
+- `deinitializeByScopeMask(mask)` expands to target nodes + transitive dependents.
+- `reinitializeByScopeMask(mask)` expands to target nodes + dependents + required dependencies.
+- `reinitializeByNodeNames(...)` uses the same reinit closure rule.
+
+## Snapshot API
 ```cpp
-(void)lifecycle.deinitialize();
-(void)lifecycle.reinitializeAll();
-(void)lifecycle.reinitializeByScopeMask(0x01);
+LifecycleSnapshot snap = lifecycle.snapshot();
+JsonDocument json = lifecycle.snapshotJson();
+serializeJson(json, Serial);
 ```
 
-## Optional Reload Listener
-```cpp
-lifecycle.startScopeListener(
-    eventBus,
-    100,
-    [](void* payload) -> uint32_t {
-        if (payload == nullptr) {
-            return 0;
-        }
-        return *static_cast<uint32_t*>(payload);
-    }
-);
-```
+`snapshotJson()` includes:
+- `state`, `activeNode`, `completed`, `total`, `failed`, `errorCode`, `updatedAtMs`
+- `phase` (`initialize|deinitialize|reinitialize|idle`)
+- `lastOperationOk`
+- `lastError.nodeName`, `lastError.detail`
+- `parallel.enabled.init|deinit|reinit`
 
-Behavior:
-- Coalesces rapid events in a 25ms window.
-- Merges masks and performs a single reinit batch.
-- If lifecycle is busy, the batch is rejected (`LifecycleErrorCode::Busy`).
-
-## Failure Policy
-- No exceptions are used.
-- Every runtime method returns `LifecycleResult`.
-- `rollbackOnInitFailure=true` rolls back already initialized nodes in reverse topological order.
-- `continueTeardownOnFailure=false` stops at first teardown error.
-
-## Thread Safety and Reentrancy
-- Transitions are guarded by a non-blocking lock.
-- Concurrent transition attempts return `Busy`.
-- `deinitialize()` is idempotent when already idle.
-
-## Validation Rules (`build()`)
-`build()` fails on:
-- duplicate section names,
-- duplicate node names,
-- missing dependencies,
-- dependency cycles,
-- deferred sections without readiness callbacks,
-- invalid node/section references,
-- optional reload-scope collisions when `disallowSharedReloadScopeBits=true`.
-
-## Migration from ESPStartup
-- `start()` becomes `build()` + `initialize()`.
-- Each node must provide both `init` and `teardown` callbacks.
-- Scoped reloads replace app-specific reloader wiring.
-- Snapshot callback schema changes to lifecycle-focused fields.
-
-## API Summary
-- `bool configure(const LifecycleConfig& config)`
-- `ESPLifecycle& init(std::initializer_list<const char*> sectionNames)`
-- `SectionBuilder& section(const char* sectionName)`
-- `NodeBuilder& addTo(const char* section, const char* nodeName, std::function<bool()> initFn, std::function<bool()> teardownFn)`
+## Runtime API
 - `LifecycleResult build()`
+- `bool start()` / `void stop()` compatibility aliases
 - `LifecycleResult initialize()`
 - `LifecycleResult deinitialize()`
+- `LifecycleResult deinitializeByScopeMask(uint32_t scopeMask)`
 - `LifecycleResult reinitializeAll()`
 - `LifecycleResult reinitializeByScopeMask(uint32_t scopeMask)`
 - `LifecycleResult reinitializeByNodeNames(const std::vector<const char*>& nodeNames)`
-- `bool startScopeListener(ESPEventBus& eventBus, uint16_t eventId, std::function<uint32_t(void*)> payloadToScopeMask)`
-- `void stopScopeListener()`
-- `LifecycleState state() const`
-- `void clear()`
+- `LifecycleSnapshot snapshot() const`
+- `JsonDocument snapshotJson() const`
+
+## Failure Policy
+- No exceptions.
+- Errors are returned through `LifecycleResult`.
+- `rollbackOnInitFailure=true` rolls back initialized subset.
+- `continueTeardownOnFailure=false` stops at first teardown failure.
+- Busy transitions return `LifecycleErrorCode::Busy`.
+
+## Migration from ESPStartup
+- `start()` exists as compatibility alias.
+- `stop()` maps to `deinitialize()`.
+- Each node must provide `init` and `teardown` callbacks.
+- Parallel config now exists for all phases.
 
 ## Examples
-- `examples/basic-startup` - deterministic init/deinit flow.
-- `examples/scoped-reload` - scope-mask-triggered reinitialization via event bus.
+- `examples/basic-startup`
+- `examples/scoped-reload`
 
 ## License
 MIT - see [LICENSE.md](LICENSE.md).

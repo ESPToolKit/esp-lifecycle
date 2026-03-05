@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include <ArduinoJson.h>
+
 #include "internal/GraphTypes.h"
 
 class ESPEventBus;
@@ -21,6 +23,7 @@ class ESPLifecycle {
         NodeBuilder& timeoutMs(uint32_t value);
         NodeBuilder& reloadScope(uint32_t scopeBit);
         NodeBuilder& optional(bool isOptional);
+        NodeBuilder& parallelSafe(bool enabled = true);
 
       private:
         ESPLifecycle* lifecycle = nullptr;
@@ -53,8 +56,11 @@ class ESPLifecycle {
 
     bool configure(const LifecycleConfig& config);
     LifecycleResult build();
+    bool start();
+    void stop();
     LifecycleResult initialize();
     LifecycleResult deinitialize();
+    LifecycleResult deinitializeByScopeMask(uint32_t scopeMask);
     LifecycleResult reinitializeAll();
     LifecycleResult reinitializeByScopeMask(uint32_t scopeMask);
     LifecycleResult reinitializeByNodeNames(const std::vector<const char*>& nodeNames);
@@ -67,6 +73,8 @@ class ESPLifecycle {
     void stopScopeListener();
 
     LifecycleState state() const;
+    LifecycleSnapshot snapshot() const;
+    JsonDocument snapshotJson() const;
     void clear();
 
   private:
@@ -86,6 +94,8 @@ class ESPLifecycle {
     std::string activeNodeText = {};
     std::string detailText = {};
     std::string nodeNameText = {};
+    bool lastOperationOk = true;
+    std::string phaseText = "idle";
 
     NodeBuilder nodeBuilder = {};
     SectionBuilder sectionBuilder = {};
@@ -107,6 +117,7 @@ class ESPLifecycle {
     void setNodeTimeout(size_t nodeIndex, uint32_t value);
     void setNodeReloadScope(size_t nodeIndex, uint32_t scopeBit);
     void setNodeOptional(size_t nodeIndex, bool isOptional);
+    void setNodeParallelSafe(size_t nodeIndex, bool enabled);
     void setSectionMode(size_t sectionIndex, LifecycleSectionMode mode);
     void setSectionReadiness(
         size_t sectionIndex,
@@ -126,19 +137,46 @@ class ESPLifecycle {
     LifecycleResult resolveIndexes();
     LifecycleResult ensureNoCycles();
 
-    LifecycleResult initializeInternal(const std::vector<size_t>& subset, LifecycleState transitionState);
-    LifecycleResult deinitializeInternal(const std::vector<size_t>& subset, bool updateState);
-    LifecycleResult runSection(size_t sectionIndex, const std::vector<size_t>& subset);
-    LifecycleResult runNodeInit(size_t nodeIndex);
-    LifecycleResult runNodeTeardown(size_t nodeIndex);
+    LifecycleResult initializeInternal(
+        const std::vector<size_t>& subset,
+        LifecycleState transitionState,
+        bool enableParallel
+    );
+    LifecycleResult deinitializeInternal(
+        const std::vector<size_t>& subset,
+        bool updateState,
+        bool enableParallel
+    );
+    LifecycleResult runSectionInitialize(
+        size_t sectionIndex,
+        const std::vector<size_t>& subset,
+        bool enableParallel
+    );
+    LifecycleResult runPhaseBatches(
+        const std::vector<std::vector<size_t>>& batches,
+        bool initializePhase,
+        bool enableParallel
+    );
+    LifecycleResult runParallelBatch(const std::vector<size_t>& batch, bool initializePhase);
+    LifecycleResult runNodeInit(size_t nodeIndex, bool countProgress = true);
+    LifecycleResult runNodeTeardown(size_t nodeIndex, bool countProgress = true);
+    std::vector<std::vector<size_t>> buildWavesForSubset(
+        const std::vector<size_t>& subset,
+        bool initializePhase
+    ) const;
+    bool requiresParallelWorkerForBatch(const std::vector<size_t>& batch) const;
+    bool isParallelEligible(size_t nodeIndex) const;
 
     std::vector<size_t> allNodeIndexes() const;
     std::vector<size_t> resolveScopeSubset(uint32_t scopeMask, bool* knownScope = nullptr) const;
-    LifecycleResult expandSubsetWithClosure(std::vector<size_t>& subset);
+    LifecycleResult expandSubsetWithDependents(std::vector<size_t>& subset);
+    LifecycleResult expandSubsetWithDependencies(std::vector<size_t>& subset);
+    LifecycleResult expandSubsetForReinitialize(std::vector<size_t>& subset);
     std::vector<size_t> reverseTopologicalSubset(const std::vector<size_t>& subset) const;
 
     void publishSnapshot();
     void setState(LifecycleState stateValue, const char* activeNode = nullptr);
+    void setPhase(const char* phaseName);
     void markProgress(const char* activeNode, bool completedStep);
     uint32_t nowMs() const;
 

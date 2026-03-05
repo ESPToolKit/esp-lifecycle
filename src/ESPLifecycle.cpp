@@ -50,6 +50,13 @@ ESPLifecycle::NodeBuilder& ESPLifecycle::NodeBuilder::optional(bool isOptional) 
     return *this;
 }
 
+ESPLifecycle::NodeBuilder& ESPLifecycle::NodeBuilder::parallelSafe(bool enabled) {
+    if( lifecycle != nullptr ){
+        lifecycle->setNodeParallelSafe(nodeIndex, enabled);
+    }
+    return *this;
+}
+
 ESPLifecycle::SectionBuilder::SectionBuilder(ESPLifecycle* lifecycleRef, size_t sectionIndexRef)
     : lifecycle(lifecycleRef), sectionIndex(sectionIndexRef) {}
 
@@ -118,6 +125,20 @@ bool ESPLifecycle::configure(const LifecycleConfig& configValue) {
     return true;
 }
 
+bool ESPLifecycle::start() {
+    LifecycleResult buildResult = build();
+    if( !buildResult.ok ){
+        return false;
+    }
+
+    LifecycleResult initResult = initialize();
+    return initResult.ok;
+}
+
+void ESPLifecycle::stop() {
+    (void)deinitialize();
+}
+
 void ESPLifecycle::clear() {
     stopScopeListener();
 
@@ -139,6 +160,8 @@ void ESPLifecycle::clear() {
         snapshotValue.errorCode = LifecycleErrorCode::None;
         detailText.clear();
         nodeNameText.clear();
+        lastOperationOk = true;
+        phaseText = "idle";
     }
     publishSnapshot();
 }
@@ -200,6 +223,13 @@ void ESPLifecycle::setNodeOptional(size_t nodeIndex, bool isOptional) {
     nodes[nodeIndex].optional = isOptional;
 }
 
+void ESPLifecycle::setNodeParallelSafe(size_t nodeIndex, bool enabled) {
+    if( nodeIndex >= nodes.size() ){
+        return;
+    }
+    nodes[nodeIndex].parallelSafe = enabled;
+}
+
 void ESPLifecycle::setSectionMode(size_t sectionIndex, LifecycleSectionMode mode) {
     if( sectionIndex >= sections.size() ){
         return;
@@ -223,6 +253,7 @@ void ESPLifecycle::setSectionReadiness(
 
 LifecycleResult ESPLifecycle::okResult(const char* detail) {
     detailText = detail == nullptr ? "" : detail;
+    lastOperationOk = true;
     LifecycleResult result{};
     result.ok = true;
     result.code = LifecycleErrorCode::None;
@@ -239,6 +270,7 @@ LifecycleResult ESPLifecycle::failResult(
 ) {
     nodeNameText = nodeName == nullptr ? "" : nodeName;
     detailText = detail == nullptr ? "" : detail;
+    lastOperationOk = false;
 
     if( updateFailedState ){
         setState(LifecycleState::Failed, nodeNameText.empty() ? nullptr : nodeNameText.c_str());

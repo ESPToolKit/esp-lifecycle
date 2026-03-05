@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
   - `reinitialize(const std::vector<const char*>&)`
   - `deinitialize(std::initializer_list<const char*>)`
   - `deinitialize(const std::vector<const char*>&)`
+- Node dependency batching API:
+  - `NodeBuilder::after(std::initializer_list<const char*>)`
 - Name-list based reload listener API:
   - `startReloadListener(ESPEventBus&, uint16_t, std::function<std::vector<const char*>(void*)>)`
   - `stopReloadListener()`

@@ -9,6 +9,7 @@ ESPLifecycle is the ESPToolKit lifecycle orchestrator for deterministic init, de
 
 ## Features
 - Section-based orchestration with dependency validation (`after` / `before`).
+- Batch dependency declaration: `.after({"dep-a", "dep-b"})`.
 - Deterministic `initialize()`, `deinitialize()`, and partial `reinitialize(...)`.
 - Node-name targeted closure with dependency correctness.
 - Optional parallel waves for init, deinit, and reinit.
@@ -53,6 +54,7 @@ void setup() {
     lifecycle.addTo("core", "logger", []() { return true; }, []() { return true; }).parallelSafe();
     lifecycle.addTo("core", "storage", []() { return true; }, []() { return true; });
     lifecycle.addTo("network", "wifi", []() { return true; }, []() { return true; }).after("logger");
+    lifecycle.addTo("network", "api", []() { return true; }, []() { return true; }).after({"logger", "storage"});
 
     (void)lifecycle.build();
     (void)lifecycle.initialize();

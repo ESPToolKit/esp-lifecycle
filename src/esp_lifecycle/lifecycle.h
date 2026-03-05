@@ -19,6 +19,7 @@ class ESPLifecycle {
         NodeBuilder(ESPLifecycle* lifecycleRef, size_t nodeIndexRef);
 
         NodeBuilder& after(const char* dependencyNodeName);
+        NodeBuilder& after(std::initializer_list<const char*> dependencyNodeNames);
         NodeBuilder& before(const char* dependentNodeName);
         NodeBuilder& timeoutMs(uint32_t value);
         NodeBuilder& optional(bool isOptional);

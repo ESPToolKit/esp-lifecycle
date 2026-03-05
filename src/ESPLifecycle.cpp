@@ -22,6 +22,16 @@ ESPLifecycle::NodeBuilder& ESPLifecycle::NodeBuilder::after(const char* dependen
     return *this;
 }
 
+ESPLifecycle::NodeBuilder&
+ESPLifecycle::NodeBuilder::after(std::initializer_list<const char*> dependencyNodeNames) {
+    if( lifecycle != nullptr ){
+        for( const char* dependencyNodeName : dependencyNodeNames ){
+            lifecycle->addDependencyName(nodeIndex, dependencyNodeName);
+        }
+    }
+    return *this;
+}
+
 ESPLifecycle::NodeBuilder& ESPLifecycle::NodeBuilder::before(const char* dependentNodeName) {
     if( lifecycle != nullptr ){
         lifecycle->addDependentName(nodeIndex, dependentNodeName);

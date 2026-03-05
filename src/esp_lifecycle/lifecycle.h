@@ -170,7 +170,7 @@ class ESPLifecycle {
     LifecycleResult resolveNodeNamesToSubset(
         const std::vector<const char*>& nodeNames,
         std::vector<size_t>& outSubset
-    ) const;
+    );
     LifecycleResult expandSubsetWithDependents(std::vector<size_t>& subset);
     LifecycleResult expandSubsetWithDependencies(std::vector<size_t>& subset);
     LifecycleResult expandSubsetForReinitialize(std::vector<size_t>& subset);

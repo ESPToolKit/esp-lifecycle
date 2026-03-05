@@ -769,7 +769,7 @@ bool ESPLifecycle::requiresParallelWorkerForBatch(const std::vector<size_t>& bat
 LifecycleResult ESPLifecycle::resolveNodeNamesToSubset(
     const std::vector<const char*>& nodeNames,
     std::vector<size_t>& outSubset
-) const {
+) {
     std::unordered_map<std::string, size_t> nodeByName;
     nodeByName.reserve(nodes.size());
     for( size_t i = 0; i < nodes.size(); i++ ){

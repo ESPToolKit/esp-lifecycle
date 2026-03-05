@@ -1,0 +1,47 @@
+{
+  "name": "ESPLifecycle",
+  "version": "0.1.0",
+  "description": "Deterministic init/deinit/reinit orchestration for ESP32 apps.",
+  "keywords": [
+    "esp32",
+    "arduino",
+    "esp-idf",
+    "lifecycle",
+    "startup",
+    "teardown",
+    "reinitialize"
+  ],
+  "homepage": "https://github.com/ESPToolKit/esp-lifecycle",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ESPToolKit/esp-lifecycle.git"
+  },
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "zekageri"
+    }
+  ],
+  "frameworks": ["arduino", "espidf"],
+  "platforms": ["espressif32"],
+  "dependencies": [
+    {
+      "name": "ESPWorker",
+      "version": "https://github.com/ESPToolKit/esp-worker.git"
+    },
+    {
+      "name": "ESPEventBus",
+      "version": "https://github.com/ESPToolKit/esp-eventbus.git"
+    },
+    {
+      "name": "ArduinoJson",
+      "version": ">=7.0.0"
+    }
+  ],
+  "headers": ["ESPLifecycle.h"],
+  "build": {
+    "flags": [
+      "-std=gnu++20"
+    ]
+  }
+}

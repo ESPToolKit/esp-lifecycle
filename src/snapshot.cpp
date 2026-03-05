@@ -41,10 +41,10 @@ const char* errorCodeToText(LifecycleErrorCode code) {
             return "invalid_section";
         case LifecycleErrorCode::InvalidConfig:
             return "invalid_config";
-        case LifecycleErrorCode::UnknownScope:
-            return "unknown_scope";
-        case LifecycleErrorCode::ScopeResolutionFailed:
-            return "scope_resolution_failed";
+        case LifecycleErrorCode::UnknownNode:
+            return "unknown_node";
+        case LifecycleErrorCode::NodeResolutionFailed:
+            return "node_resolution_failed";
     }
 
     return "unknown";

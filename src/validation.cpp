@@ -88,26 +88,6 @@ LifecycleResult ESPLifecycle::validateAndBuildGraph() {
         return failResult(LifecycleErrorCode::InvalidConfig, nullptr, "maxDependencies exceeded", false);
     }
 
-    if( config.disallowSharedReloadScopeBits ){
-        std::unordered_map<uint32_t, std::string> scopeOwner;
-        for( const auto& node : nodes ){
-            if( node.reloadScopeMask == 0 ){
-                continue;
-            }
-
-            auto it = scopeOwner.find(node.reloadScopeMask);
-            if( it != scopeOwner.end() ){
-                return failResult(
-                    LifecycleErrorCode::InvalidConfig,
-                    node.name.c_str(),
-                    "reload scope bit collision",
-                    false
-                );
-            }
-            scopeOwner[node.reloadScopeMask] = node.name;
-        }
-    }
-
     for( auto& node : nodes ){
         node.dependencyIndexes.clear();
         node.reverseDependencyIndexes.clear();

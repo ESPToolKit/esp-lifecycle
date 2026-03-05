@@ -36,13 +36,6 @@ ESPLifecycle::NodeBuilder& ESPLifecycle::NodeBuilder::timeoutMs(uint32_t value) 
     return *this;
 }
 
-ESPLifecycle::NodeBuilder& ESPLifecycle::NodeBuilder::reloadScope(uint32_t scopeBit) {
-    if( lifecycle != nullptr ){
-        lifecycle->setNodeReloadScope(nodeIndex, scopeBit);
-    }
-    return *this;
-}
-
 ESPLifecycle::NodeBuilder& ESPLifecycle::NodeBuilder::optional(bool isOptional) {
     if( lifecycle != nullptr ){
         lifecycle->setNodeOptional(nodeIndex, isOptional);
@@ -125,22 +118,18 @@ bool ESPLifecycle::configure(const LifecycleConfig& configValue) {
     return true;
 }
 
-bool ESPLifecycle::start() {
-    LifecycleResult buildResult = build();
-    if( !buildResult.ok ){
-        return false;
-    }
-
-    LifecycleResult initResult = initialize();
-    return initResult.ok;
+LifecycleResult ESPLifecycle::deinitialize(std::initializer_list<const char*> nodeNames) {
+    std::vector<const char*> names(nodeNames.begin(), nodeNames.end());
+    return deinitialize(names);
 }
 
-void ESPLifecycle::stop() {
-    (void)deinitialize();
+LifecycleResult ESPLifecycle::reinitialize(std::initializer_list<const char*> nodeNames) {
+    std::vector<const char*> names(nodeNames.begin(), nodeNames.end());
+    return reinitialize(names);
 }
 
 void ESPLifecycle::clear() {
-    stopScopeListener();
+    stopReloadListener();
 
     {
         std::lock_guard<std::mutex> lock(transitionMutex);
@@ -207,13 +196,6 @@ void ESPLifecycle::setNodeTimeout(size_t nodeIndex, uint32_t value) {
         return;
     }
     nodes[nodeIndex].timeoutMs = value;
-}
-
-void ESPLifecycle::setNodeReloadScope(size_t nodeIndex, uint32_t scopeBit) {
-    if( nodeIndex >= nodes.size() ){
-        return;
-    }
-    nodes[nodeIndex].reloadScopeMask = scopeBit;
 }
 
 void ESPLifecycle::setNodeOptional(size_t nodeIndex, bool isOptional) {
@@ -299,26 +281,6 @@ std::vector<size_t> ESPLifecycle::allNodeIndexes() const {
         indexes.push_back(i);
     }
     return indexes;
-}
-
-std::vector<size_t> ESPLifecycle::reverseTopologicalSubset(const std::vector<size_t>& subset) const {
-    std::vector<size_t> reversed;
-    reversed.reserve(subset.size());
-
-    std::vector<bool> selected(nodes.size(), false);
-    for( size_t index : subset ){
-        if( index < selected.size() ){
-            selected[index] = true;
-        }
-    }
-
-    for( auto it = topologicalOrder.rbegin(); it != topologicalOrder.rend(); ++it ){
-        if( *it < selected.size() && selected[*it] ){
-            reversed.push_back(*it);
-        }
-    }
-
-    return reversed;
 }
 
 void ESPLifecycle::log(LifecycleLogLevel level, const char* message) const {

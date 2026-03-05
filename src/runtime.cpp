@@ -104,7 +104,7 @@ LifecycleResult ESPLifecycle::deinitialize() {
     return okResult("deinitialized");
 }
 
-LifecycleResult ESPLifecycle::deinitializeByScopeMask(uint32_t scopeMask) {
+LifecycleResult ESPLifecycle::deinitialize(const std::vector<const char*>& nodeNames) {
     std::unique_lock<std::mutex> lock(transitionMutex, std::try_to_lock);
     if( !lock.owns_lock() ){
         return failResult(LifecycleErrorCode::Busy, nullptr, "lifecycle is busy", false);
@@ -117,15 +117,10 @@ LifecycleResult ESPLifecycle::deinitializeByScopeMask(uint32_t scopeMask) {
         }
     }
 
-    bool knownScope = false;
-    std::vector<size_t> subset = resolveScopeSubset(scopeMask, &knownScope);
-    if( subset.empty() ){
-        return failResult(
-            knownScope ? LifecycleErrorCode::ScopeResolutionFailed : LifecycleErrorCode::UnknownScope,
-            nullptr,
-            "scope mask resolved no nodes",
-            false
-        );
+    std::vector<size_t> subset;
+    LifecycleResult resolveResult = resolveNodeNamesToSubset(nodeNames, subset);
+    if( !resolveResult.ok ){
+        return resolveResult;
     }
 
     LifecycleResult closureResult = expandSubsetWithDependents(subset);
@@ -146,7 +141,7 @@ LifecycleResult ESPLifecycle::deinitializeByScopeMask(uint32_t scopeMask) {
         setState(LifecycleState::Idle, nullptr);
     }
     setPhase("idle");
-    return okResult("deinitialized scope");
+    return okResult("deinitialized nodes");
 }
 
 LifecycleResult ESPLifecycle::reinitializeAll() {
@@ -197,7 +192,7 @@ LifecycleResult ESPLifecycle::reinitializeAll() {
     return okResult("reinitialized all");
 }
 
-LifecycleResult ESPLifecycle::reinitializeByScopeMask(uint32_t scopeMask) {
+LifecycleResult ESPLifecycle::reinitialize(const std::vector<const char*>& nodeNames) {
     std::unique_lock<std::mutex> lock(transitionMutex, std::try_to_lock);
     if( !lock.owns_lock() ){
         return failResult(LifecycleErrorCode::Busy, nullptr, "lifecycle is busy", false);
@@ -208,93 +203,12 @@ LifecycleResult ESPLifecycle::reinitializeByScopeMask(uint32_t scopeMask) {
         if( !buildResult.ok ){
             return buildResult;
         }
-    }
-
-    bool knownScope = false;
-    std::vector<size_t> subset = resolveScopeSubset(scopeMask, &knownScope);
-    if( subset.empty() ){
-        return failResult(
-            knownScope ? LifecycleErrorCode::ScopeResolutionFailed : LifecycleErrorCode::UnknownScope,
-            nullptr,
-            "scope mask resolved no nodes",
-            false
-        );
-    }
-
-    LifecycleResult closureResult = expandSubsetForReinitialize(subset);
-    if( !closureResult.ok ){
-        return closureResult;
-    }
-
-    setPhase("reinitialize");
-    setState(LifecycleState::Reinitializing, nullptr);
-
-    LifecycleResult deinitResult = deinitializeInternal(
-        subset,
-        false,
-        config.enableParallelReinit
-    );
-    if( !deinitResult.ok ){
-        setState(LifecycleState::Failed, deinitResult.nodeName);
-        return deinitResult;
-    }
-
-    LifecycleResult initResult = initializeInternal(
-        subset,
-        LifecycleState::Reinitializing,
-        config.enableParallelReinit
-    );
-    if( !initResult.ok ){
-        if( config.onInitFailed ){
-            config.onInitFailed();
-        }
-        return initResult;
-    }
-
-    setState(LifecycleState::Running, nullptr);
-    setPhase("idle");
-    return okResult("reinitialized scope");
-}
-
-LifecycleResult ESPLifecycle::reinitializeByNodeNames(const std::vector<const char*>& nodeNames) {
-    std::unique_lock<std::mutex> lock(transitionMutex, std::try_to_lock);
-    if( !lock.owns_lock() ){
-        return failResult(LifecycleErrorCode::Busy, nullptr, "lifecycle is busy", false);
-    }
-
-    if( !graphBuilt ){
-        LifecycleResult buildResult = validateAndBuildGraph();
-        if( !buildResult.ok ){
-            return buildResult;
-        }
-    }
-
-    std::unordered_map<std::string, size_t> nodeByName;
-    nodeByName.reserve(nodes.size());
-    for( size_t i = 0; i < nodes.size(); i++ ){
-        nodeByName[nodes[i].name] = i;
     }
 
     std::vector<size_t> subset;
-    subset.reserve(nodeNames.size());
-
-    for( const char* nodeName : nodeNames ){
-        if( nodeName == nullptr ){
-            continue;
-        }
-
-        auto it = nodeByName.find(nodeName);
-        if( it == nodeByName.end() ){
-            return failResult(LifecycleErrorCode::ScopeResolutionFailed, nodeName, "unknown node name", false);
-        }
-
-        subset.push_back(it->second);
-    }
-
-    std::sort(subset.begin(), subset.end());
-    subset.erase(std::unique(subset.begin(), subset.end()), subset.end());
-    if( subset.empty() ){
-        return failResult(LifecycleErrorCode::ScopeResolutionFailed, nullptr, "empty node subset", false);
+    LifecycleResult resolveResult = resolveNodeNamesToSubset(nodeNames, subset);
+    if( !resolveResult.ok ){
+        return resolveResult;
     }
 
     LifecycleResult closureResult = expandSubsetForReinitialize(subset);
@@ -852,32 +766,40 @@ bool ESPLifecycle::requiresParallelWorkerForBatch(const std::vector<size_t>& bat
     return eligible >= 2;
 }
 
-std::vector<size_t> ESPLifecycle::resolveScopeSubset(uint32_t scopeMask, bool* knownScope) const {
-    std::vector<size_t> subset;
-    if( scopeMask == 0 ){
-        if( knownScope != nullptr ){
-            *knownScope = false;
-        }
-        return subset;
+LifecycleResult ESPLifecycle::resolveNodeNamesToSubset(
+    const std::vector<const char*>& nodeNames,
+    std::vector<size_t>& outSubset
+) const {
+    std::unordered_map<std::string, size_t> nodeByName;
+    nodeByName.reserve(nodes.size());
+    for( size_t i = 0; i < nodes.size(); i++ ){
+        nodeByName[nodes[i].name] = i;
     }
 
-    bool found = false;
+    outSubset.clear();
+    outSubset.reserve(nodeNames.size());
 
-    for( size_t i = 0; i < nodes.size(); i++ ){
-        if( nodes[i].reloadScopeMask == 0 ){
+    for( const char* nodeName : nodeNames ){
+        if( nodeName == nullptr ){
             continue;
         }
 
-        if( (nodes[i].reloadScopeMask & scopeMask) != 0 ){
-            found = true;
-            subset.push_back(i);
+        auto it = nodeByName.find(nodeName);
+        if( it == nodeByName.end() ){
+            return failResult(LifecycleErrorCode::UnknownNode, nodeName, "unknown node name", false);
         }
+
+        outSubset.push_back(it->second);
     }
 
-    if( knownScope != nullptr ){
-        *knownScope = found;
+    std::sort(outSubset.begin(), outSubset.end());
+    outSubset.erase(std::unique(outSubset.begin(), outSubset.end()), outSubset.end());
+
+    if( outSubset.empty() ){
+        return failResult(LifecycleErrorCode::NodeResolutionFailed, nullptr, "empty node selection", false);
     }
-    return subset;
+
+    return okResult();
 }
 
 LifecycleResult ESPLifecycle::expandSubsetWithDependents(std::vector<size_t>& subset) {
@@ -890,7 +812,7 @@ LifecycleResult ESPLifecycle::expandSubsetWithDependents(std::vector<size_t>& su
 
     for( size_t index : subset ){
         if( index >= nodes.size() ){
-            return failResult(LifecycleErrorCode::ScopeResolutionFailed, nullptr, "subset index out of bounds", false);
+            return failResult(LifecycleErrorCode::NodeResolutionFailed, nullptr, "subset index out of bounds", false);
         }
 
         if( !included[index] ){
@@ -919,7 +841,7 @@ LifecycleResult ESPLifecycle::expandSubsetWithDependents(std::vector<size_t>& su
     }
 
     if( subset.empty() ){
-        return failResult(LifecycleErrorCode::ScopeResolutionFailed, nullptr, "dependent closure is empty", false);
+        return failResult(LifecycleErrorCode::NodeResolutionFailed, nullptr, "dependent closure is empty", false);
     }
 
     return okResult();
@@ -935,7 +857,7 @@ LifecycleResult ESPLifecycle::expandSubsetWithDependencies(std::vector<size_t>& 
 
     for( size_t index : subset ){
         if( index >= nodes.size() ){
-            return failResult(LifecycleErrorCode::ScopeResolutionFailed, nullptr, "subset index out of bounds", false);
+            return failResult(LifecycleErrorCode::NodeResolutionFailed, nullptr, "subset index out of bounds", false);
         }
 
         if( !included[index] ){
@@ -964,7 +886,7 @@ LifecycleResult ESPLifecycle::expandSubsetWithDependencies(std::vector<size_t>& 
     }
 
     if( subset.empty() ){
-        return failResult(LifecycleErrorCode::ScopeResolutionFailed, nullptr, "dependency closure is empty", false);
+        return failResult(LifecycleErrorCode::NodeResolutionFailed, nullptr, "dependency closure is empty", false);
     }
 
     return okResult();

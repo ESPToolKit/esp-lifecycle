@@ -2,10 +2,12 @@
 
 #include "ESPEventBus.h"
 
+#include <algorithm>
 #include <chrono>
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #if __has_include(<freertos/FreeRTOS.h>)
 #include <freertos/FreeRTOS.h>
@@ -19,30 +21,30 @@
 #define pdMS_TO_TICKS(ms) (ms)
 #endif
 
-bool ESPLifecycle::startScopeListener(
+bool ESPLifecycle::startReloadListener(
     ESPEventBus& eventBus,
     uint16_t eventId,
-    std::function<uint32_t(void*)> payloadToScopeMask
+    std::function<std::vector<const char*>(void*)> payloadToNodeNames
 ) {
-    if( payloadToScopeMask == nullptr ){
+    if( payloadToNodeNames == nullptr ){
         return false;
     }
 
     if( config.worker == nullptr ){
-        log(LifecycleLogLevel::Error, "scope listener requires config.worker");
+        log(LifecycleLogLevel::Error, "reload listener requires config.worker");
         return false;
     }
 
-    stopScopeListener();
+    stopReloadListener();
 
     EventBusSub subId = eventBus.subscribe(
         eventId,
-        [this, payloadToScopeMask](void* payload, void* /*userArg*/) {
-            const uint32_t mask = payloadToScopeMask(payload);
-            if( mask == 0 ){
+        [this, payloadToNodeNames](void* payload, void* /*userArg*/) {
+            const std::vector<const char*> names = payloadToNodeNames(payload);
+            if( names.empty() ){
                 return;
             }
-            scheduleScopeReinitialize(mask);
+            scheduleNodeReinitialize(names);
         }
     );
 
@@ -53,14 +55,14 @@ bool ESPLifecycle::startScopeListener(
     std::lock_guard<std::mutex> lock(listenerMutex);
     listenerBus = &eventBus;
     listenerEventId = eventId;
-    listenerPayloadMaskFn = std::move(payloadToScopeMask);
+    listenerPayloadNamesFn = std::move(payloadToNodeNames);
     listenerSubId = subId;
-    pendingScopeMask = 0;
+    pendingNodeNames.clear();
     listenerWorkerRunning = false;
     return true;
 }
 
-void ESPLifecycle::stopScopeListener() {
+void ESPLifecycle::stopReloadListener() {
     std::lock_guard<std::mutex> lock(listenerMutex);
     if( listenerBus != nullptr && listenerSubId != 0 ){
         listenerBus->unsubscribe(listenerSubId);
@@ -69,13 +71,13 @@ void ESPLifecycle::stopScopeListener() {
     listenerBus = nullptr;
     listenerSubId = 0;
     listenerEventId = 0;
-    listenerPayloadMaskFn = {};
-    pendingScopeMask = 0;
+    listenerPayloadNamesFn = {};
+    pendingNodeNames.clear();
     listenerWorkerRunning = false;
 }
 
-void ESPLifecycle::scheduleScopeReinitialize(uint32_t scopeMask) {
-    if( scopeMask == 0 ){
+void ESPLifecycle::scheduleNodeReinitialize(const std::vector<const char*>& nodeNames) {
+    if( nodeNames.empty() ){
         return;
     }
 
@@ -83,7 +85,19 @@ void ESPLifecycle::scheduleScopeReinitialize(uint32_t scopeMask) {
 
     {
         std::lock_guard<std::mutex> lock(listenerMutex);
-        pendingScopeMask |= scopeMask;
+        for( const char* name : nodeNames ){
+            if( name == nullptr || name[0] == '\0' ){
+                continue;
+            }
+
+            if( std::find(pendingNodeNames.begin(), pendingNodeNames.end(), name) == pendingNodeNames.end() ){
+                pendingNodeNames.emplace_back(name);
+            }
+        }
+
+        if( pendingNodeNames.empty() ){
+            return;
+        }
 
         if( !listenerWorkerRunning ){
             listenerWorkerRunning = true;
@@ -119,7 +133,7 @@ void ESPLifecycle::scheduleScopeReinitialize(uint32_t scopeMask) {
     if( spawnResult.error != WorkerError::None ){
         std::lock_guard<std::mutex> lock(listenerMutex);
         listenerWorkerRunning = false;
-        log(LifecycleLogLevel::Error, "failed to spawn scope listener worker");
+        log(LifecycleLogLevel::Error, "failed to spawn reload listener worker");
     }
 }
 
@@ -131,23 +145,28 @@ void ESPLifecycle::listenerWorkerLoop() {
         std::this_thread::sleep_for(std::chrono::milliseconds(listenerCoalesceMs));
 #endif
 
-        uint32_t mask = 0;
+        std::vector<std::string> pending;
         {
             std::lock_guard<std::mutex> lock(listenerMutex);
-            mask = pendingScopeMask;
-            pendingScopeMask = 0;
+            pending.swap(pendingNodeNames);
         }
 
-        if( mask == 0 ){
+        if( pending.empty() ){
             break;
         }
 
-        LifecycleResult result = reinitializeByScopeMask(mask);
+        std::vector<const char*> names;
+        names.reserve(pending.size());
+        for( const std::string& name : pending ){
+            names.push_back(name.c_str());
+        }
+
+        LifecycleResult result = reinitialize(names);
         if( !result.ok ){
             if( result.code == LifecycleErrorCode::Busy ){
-                log(LifecycleLogLevel::Warn, "scope-triggered reinitialize rejected because lifecycle is busy");
+                log(LifecycleLogLevel::Warn, "reload reinitialize rejected because lifecycle is busy");
             } else {
-                log(LifecycleLogLevel::Error, "scope-triggered reinitialize failed");
+                log(LifecycleLogLevel::Error, "reload reinitialize failed");
             }
         }
     }
@@ -156,7 +175,7 @@ void ESPLifecycle::listenerWorkerLoop() {
         std::lock_guard<std::mutex> lock(listenerMutex);
         listenerWorkerRunning = false;
 
-        if( pendingScopeMask != 0 ){
+        if( !pendingNodeNames.empty() ){
             listenerWorkerRunning = true;
             if( config.worker != nullptr ){
                 WorkerConfig workerConfig{};

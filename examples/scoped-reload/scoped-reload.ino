@@ -3,8 +3,13 @@
 #include <ESPLifecycle.h>
 #include <ESPWorker.h>
 
+struct ReloadPayload {
+    const char* names[3];
+    uint8_t count;
+};
+
 enum : uint16_t {
-    EVENT_RELOAD_SCOPE = 100,
+    EVENT_RELOAD_NODES = 100,
 };
 
 ESPWorker worker;
@@ -33,33 +38,39 @@ void setup() {
     lifecycle.configure(config);
     lifecycle.init({"core", "network", "services"});
 
-    lifecycle.addTo("core", "logger", []() { return true; }, []() { return true; }).reloadScope(0x01);
-    lifecycle.addTo("network", "wifi", []() { return true; }, []() { return true; }).after("logger").reloadScope(0x02);
-    lifecycle.addTo("services", "api", []() { return true; }, []() { return true; }).after("wifi").reloadScope(0x04);
+    lifecycle.addTo("core", "logger", []() { return true; }, []() { return true; });
+    lifecycle.addTo("network", "wifi", []() { return true; }, []() { return true; }).after("logger");
+    lifecycle.addTo("services", "api", []() { return true; }, []() { return true; }).after("wifi");
 
-    if( !lifecycle.startScopeListener(
+    if( !lifecycle.startReloadListener(
             eventBus,
-            EVENT_RELOAD_SCOPE,
-            [](void* payload) -> uint32_t {
+            EVENT_RELOAD_NODES,
+            [](void* payload) -> std::vector<const char*> {
+                std::vector<const char*> names;
                 if( payload == nullptr ){
-                    return 0;
+                    return names;
                 }
-                return *static_cast<uint32_t*>(payload);
+
+                ReloadPayload* data = static_cast<ReloadPayload*>(payload);
+                for( uint8_t i = 0; i < data->count; i++ ){
+                    if( data->names[i] != nullptr ){
+                        names.push_back(data->names[i]);
+                    }
+                }
+                return names;
             }
         ) ){
-        Serial.println("scope listener failed");
+        Serial.println("reload listener failed");
     }
 
-    if( !lifecycle.start() ){
-        Serial.println("start failed");
-        return;
-    }
+    (void)lifecycle.build();
+    (void)lifecycle.initialize();
 
-    uint32_t mask = 0x02;  // reinit wifi + dependent services + required dependencies
-    (void)eventBus.post(EVENT_RELOAD_SCOPE, &mask);
+    ReloadPayload payload{{"logger", nullptr, nullptr}, 1};
+    (void)eventBus.post(EVENT_RELOAD_NODES, &payload);
 
     delay(1000);
-    (void)lifecycle.deinitializeByScopeMask(0x01);  // deinit logger + dependents
+    (void)lifecycle.deinitialize({"logger"});
 }
 
 void loop() {

@@ -26,8 +26,15 @@ void setup() {
     lifecycle.addTo("core", "storage", []() { return true; }, []() { return true; });
     lifecycle.addTo("network", "wifi", []() { return true; }, []() { return true; }).after("storage");
 
-    if( !lifecycle.start() ){
-        Serial.println("start failed");
+    LifecycleResult buildResult = lifecycle.build();
+    if( !buildResult.ok ){
+        Serial.println("build failed");
+        return;
+    }
+
+    LifecycleResult initResult = lifecycle.initialize();
+    if( !initResult.ok ){
+        Serial.println("initialize failed");
         return;
     }
 
@@ -36,7 +43,7 @@ void setup() {
     Serial.println();
 
     delay(1000);
-    lifecycle.stop();
+    (void)lifecycle.deinitialize({"logger"});
 }
 
 void loop() {

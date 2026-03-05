@@ -5,31 +5,38 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- ESPStartup-like compatibility APIs: `start()` and `stop()` aliases.
-- `NodeBuilder::parallelSafe(bool)` for fluent startup-style tuning.
-- `LifecycleConfig` parallel controls for all phases:
-  - `enableParallelInit`
-  - `enableParallelDeinit`
-  - `enableParallelReinit`
-- Additional runtime config fields:
-  - `waitTicks`
-  - `workerName`
-  - `workerStackSizeBytes`
-- Direct snapshot APIs:
-  - `LifecycleSnapshot snapshot() const`
-  - `JsonDocument snapshotJson() const`
-- Scope teardown entrypoint:
-  - `LifecycleResult deinitializeByScopeMask(uint32_t scopeMask)`
+- Name-first runtime APIs:
+  - `reinitialize(std::initializer_list<const char*>)`
+  - `reinitialize(const std::vector<const char*>&)`
+  - `deinitialize(std::initializer_list<const char*>)`
+  - `deinitialize(const std::vector<const char*>&)`
+- Name-list based reload listener API:
+  - `startReloadListener(ESPEventBus&, uint16_t, std::function<std::vector<const char*>(void*)>)`
+  - `stopReloadListener()`
+- Extended example suite:
+  - `dependency-closure`
+  - `deferred-readiness`
+  - `parallel-waves`
+  - `failure-policy`
+  - `reload-burst`
 
 ### Changed
-- Scoped teardown now includes transitive dependents of selected scope nodes.
-- Scoped reinit now includes selected nodes, their transitive dependents, and required transitive dependencies.
-- Runtime scheduling now uses deterministic dependency waves for init/deinit/reinit.
-- Parallel execution now supported in init/deinit/reinit waves when enabled.
+- Public lifecycle targeting is now node-name based.
+- Partial deinitialize expands selected nodes with transitive dependents.
+- Partial reinitialize expands selected nodes with dependents and required dependencies.
+- Reload listener now consumes node-name payloads and coalesces deduplicated names.
+
+### Removed
+- `start()` / `stop()` compatibility aliases.
+- Scope-mask-based APIs:
+  - `deinitializeByScopeMask(...)`
+  - `reinitializeByScopeMask(...)`
+  - `reinitializeByNodeNames(...)`
+- Node scope bit tagging API:
+  - `NodeBuilder::reloadScope(...)`
 
 ### Fixed
-- Dependency closure behavior now matches lifecycle correctness requirements for partial reinit.
-- Snapshot metadata now includes phase and last operation/error context for websocket/UI consumers.
+- Error reporting now uses node-focused resolution failures (`UnknownNode`, `NodeResolutionFailed`).
 
 ## [0.1.0] - 2026-03-05
 ### Added

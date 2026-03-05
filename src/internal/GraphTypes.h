@@ -42,8 +42,8 @@ enum class LifecycleErrorCode : uint8_t {
     TeardownFailed,
     InvalidSection,
     InvalidConfig,
-    UnknownScope,
-    ScopeResolutionFailed,
+    UnknownNode,
+    NodeResolutionFailed,
 };
 
 enum class LifecycleLogLevel : uint8_t {
@@ -83,7 +83,6 @@ struct LifecycleConfig {
     bool continueTeardownOnFailure = false;
     uint16_t maxNodes = 64;
     uint16_t maxDependencies = 256;
-    bool disallowSharedReloadScopeBits = false;
     std::function<void()> onInitStarted;
     std::function<void()> onReady;
     std::function<void()> onInitFailed;
@@ -104,7 +103,6 @@ struct LifecycleNodeDefinition {
     std::function<bool()> initFn;
     std::function<bool()> teardownFn;
     uint32_t timeoutMs = 0;
-    uint32_t reloadScopeMask = 0;
     bool optional = false;
     bool parallelSafe = false;
     std::vector<std::string> dependenciesByName;

@@ -21,7 +21,6 @@ class ESPLifecycle {
         NodeBuilder& after(const char* dependencyNodeName);
         NodeBuilder& before(const char* dependentNodeName);
         NodeBuilder& timeoutMs(uint32_t value);
-        NodeBuilder& reloadScope(uint32_t scopeBit);
         NodeBuilder& optional(bool isOptional);
         NodeBuilder& parallelSafe(bool enabled = true);
 
@@ -56,21 +55,22 @@ class ESPLifecycle {
 
     bool configure(const LifecycleConfig& config);
     LifecycleResult build();
-    bool start();
-    void stop();
+
     LifecycleResult initialize();
     LifecycleResult deinitialize();
-    LifecycleResult deinitializeByScopeMask(uint32_t scopeMask);
-    LifecycleResult reinitializeAll();
-    LifecycleResult reinitializeByScopeMask(uint32_t scopeMask);
-    LifecycleResult reinitializeByNodeNames(const std::vector<const char*>& nodeNames);
+    LifecycleResult deinitialize(std::initializer_list<const char*> nodeNames);
+    LifecycleResult deinitialize(const std::vector<const char*>& nodeNames);
 
-    bool startScopeListener(
+    LifecycleResult reinitializeAll();
+    LifecycleResult reinitialize(std::initializer_list<const char*> nodeNames);
+    LifecycleResult reinitialize(const std::vector<const char*>& nodeNames);
+
+    bool startReloadListener(
         ESPEventBus& eventBus,
         uint16_t eventId,
-        std::function<uint32_t(void*)> payloadToScopeMask
+        std::function<std::vector<const char*>(void*)> payloadToNodeNames
     );
-    void stopScopeListener();
+    void stopReloadListener();
 
     LifecycleState state() const;
     LifecycleSnapshot snapshot() const;
@@ -106,8 +106,8 @@ class ESPLifecycle {
     ESPEventBus* listenerBus = nullptr;
     uint32_t listenerSubId = 0;
     uint16_t listenerEventId = 0;
-    std::function<uint32_t(void*)> listenerPayloadMaskFn;
-    uint32_t pendingScopeMask = 0;
+    std::function<std::vector<const char*>(void*)> listenerPayloadNamesFn;
+    std::vector<std::string> pendingNodeNames = {};
     bool listenerWorkerRunning = false;
     uint32_t listenerCoalesceMs = 25;
 
@@ -115,7 +115,6 @@ class ESPLifecycle {
     void addDependencyName(size_t nodeIndex, const char* dependencyNodeName);
     void addDependentName(size_t nodeIndex, const char* dependentNodeName);
     void setNodeTimeout(size_t nodeIndex, uint32_t value);
-    void setNodeReloadScope(size_t nodeIndex, uint32_t scopeBit);
     void setNodeOptional(size_t nodeIndex, bool isOptional);
     void setNodeParallelSafe(size_t nodeIndex, bool enabled);
     void setSectionMode(size_t sectionIndex, LifecycleSectionMode mode);
@@ -168,11 +167,13 @@ class ESPLifecycle {
     bool isParallelEligible(size_t nodeIndex) const;
 
     std::vector<size_t> allNodeIndexes() const;
-    std::vector<size_t> resolveScopeSubset(uint32_t scopeMask, bool* knownScope = nullptr) const;
+    LifecycleResult resolveNodeNamesToSubset(
+        const std::vector<const char*>& nodeNames,
+        std::vector<size_t>& outSubset
+    ) const;
     LifecycleResult expandSubsetWithDependents(std::vector<size_t>& subset);
     LifecycleResult expandSubsetWithDependencies(std::vector<size_t>& subset);
     LifecycleResult expandSubsetForReinitialize(std::vector<size_t>& subset);
-    std::vector<size_t> reverseTopologicalSubset(const std::vector<size_t>& subset) const;
 
     void publishSnapshot();
     void setState(LifecycleState stateValue, const char* activeNode = nullptr);
@@ -182,6 +183,6 @@ class ESPLifecycle {
 
     void log(LifecycleLogLevel level, const char* message) const;
 
-    void scheduleScopeReinitialize(uint32_t scopeMask);
+    void scheduleNodeReinitialize(const std::vector<const char*>& nodeNames);
     void listenerWorkerLoop();
 };

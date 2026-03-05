@@ -103,6 +103,14 @@ ESPLifecycle::SectionBuilder& ESPLifecycle::section(const char* sectionName) {
 ESPLifecycle::NodeBuilder& ESPLifecycle::addTo(
     const char* section,
     const char* nodeName,
+    std::function<bool()> initFn
+) {
+    return addTo(section, nodeName, std::move(initFn), []() { return true; });
+}
+
+ESPLifecycle::NodeBuilder& ESPLifecycle::addTo(
+    const char* section,
+    const char* nodeName,
     std::function<bool()> initFn,
     std::function<bool()> teardownFn
 ) {

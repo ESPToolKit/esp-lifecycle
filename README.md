@@ -51,7 +51,7 @@ void setup() {
     lifecycle.configure(cfg);
     lifecycle.init({"core", "network"});
 
-    lifecycle.addTo("core", "logger", []() { return true; }, []() { return true; }).parallelSafe();
+    lifecycle.addTo("core", "logger", []() { return true; }).parallelSafe();
     lifecycle.addTo("core", "storage", []() { return true; }, []() { return true; });
     lifecycle.addTo("network", "wifi", []() { return true; }, []() { return true; }).after("logger");
     lifecycle.addTo("network", "api", []() { return true; }, []() { return true; }).after({"logger", "storage"});
@@ -63,6 +63,8 @@ void setup() {
     (void)lifecycle.reinitialize({"logger"});
 }
 ```
+
+If teardown is omitted in `addTo(...)`, ESPLifecycle uses a default teardown callback that returns `true`.
 
 ## Deferred Section Example
 ```cpp
@@ -94,6 +96,8 @@ serializeJson(json, Serial);
 - `parallel.enabled.init|deinit|reinit`
 
 ## Runtime API
+- `NodeBuilder& addTo(const char* section, const char* nodeName, std::function<bool()> initFn)`
+- `NodeBuilder& addTo(const char* section, const char* nodeName, std::function<bool()> initFn, std::function<bool()> teardownFn)`
 - `LifecycleResult build()`
 - `LifecycleResult initialize()`
 - `LifecycleResult deinitialize()`

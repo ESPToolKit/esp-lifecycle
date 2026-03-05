@@ -50,6 +50,11 @@ class ESPLifecycle {
     NodeBuilder& addTo(
         const char* section,
         const char* nodeName,
+        std::function<bool()> initFn
+    );
+    NodeBuilder& addTo(
+        const char* section,
+        const char* nodeName,
         std::function<bool()> initFn,
         std::function<bool()> teardownFn
     );

@@ -15,6 +15,9 @@ All notable changes to this project will be documented in this file.
 - Name-list based reload listener API:
   - `startReloadListener(ESPEventBus&, uint16_t, std::function<std::vector<const char*>(void*)>)`
   - `stopReloadListener()`
+- Optional node teardown callback overload:
+  - `addTo(const char* section, const char* nodeName, std::function<bool()> initFn)`
+  - Defaults teardown to a callback that returns `true`
 - Extended example suite:
   - `dependency-closure`
   - `deferred-readiness`

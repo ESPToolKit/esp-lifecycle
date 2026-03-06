@@ -61,6 +61,7 @@ void setup() {
     config.enableParallelInit = false;
     config.enableParallelDeinit = false;
     config.enableParallelReinit = false;
+    config.dependencyReinitialization = true;
 
     lifecycle.configure(config);
     lifecycle.init({"core", "network", "services"});

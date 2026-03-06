@@ -11,7 +11,7 @@ ESPLifecycle is the ESPToolKit lifecycle orchestrator for deterministic init, de
 - Section-based orchestration with dependency validation (`after` / `before`).
 - Batch dependency declaration: `.after({"dep-a", "dep-b"})`.
 - Deterministic `initialize()`, `deinitialize()`, and partial `reinitialize(...)`.
-- Node-name targeted closure with dependency correctness.
+- Node-name targeted reinit with optional dependency closure.
 - Optional parallel waves for init, deinit, and reinit.
 - Deferred sections with readiness gates.
 - Snapshot callback + direct `snapshotJson()` helper (ArduinoJson V7).
@@ -47,6 +47,7 @@ void setup() {
     cfg.enableParallelInit = true;
     cfg.enableParallelDeinit = true;
     cfg.enableParallelReinit = true;
+    cfg.dependencyReinitialization = true; // opt-in: include dependents/dependencies on partial reinit
 
     lifecycle.configure(cfg);
     lifecycle.init({"core", "network"});
@@ -59,7 +60,7 @@ void setup() {
     (void)lifecycle.build();
     (void)lifecycle.initialize();
 
-    // Reinitialize logger and everything that depends on it.
+    // Reinitialize logger and everything that depends on it (because dependencyReinitialization=true).
     (void)lifecycle.reinitialize({"logger"});
 }
 ```
@@ -78,8 +79,12 @@ lifecycle.section("services")
 
 ## Node-Name Targeting Semantics
 - `deinitialize({"logger"})` expands to selected nodes + transitive dependents.
-- `reinitialize({"logger"})` expands to selected nodes + dependents + required dependencies.
+- `reinitialize({"logger"})` targets selected nodes only (default behavior).
+- Set `cfg.dependencyReinitialization = true` to expand `reinitialize({"logger"})` to selected nodes + dependents + required dependencies.
 - `reinitializeAll()` keeps full-graph behavior.
+
+## Migration Note
+- If you relied on legacy partial-reinit closure, set `cfg.dependencyReinitialization = true` to retain the previous behavior.
 
 ## Snapshot API
 ```cpp

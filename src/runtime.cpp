@@ -211,9 +211,11 @@ LifecycleResult ESPLifecycle::reinitialize(const std::vector<const char*>& nodeN
         return resolveResult;
     }
 
-    LifecycleResult closureResult = expandSubsetForReinitialize(subset);
-    if( !closureResult.ok ){
-        return closureResult;
+    if( config.dependencyReinitialization ){
+        LifecycleResult closureResult = expandSubsetForReinitialize(subset);
+        if( !closureResult.ok ){
+            return closureResult;
+        }
     }
 
     setPhase("reinitialize");

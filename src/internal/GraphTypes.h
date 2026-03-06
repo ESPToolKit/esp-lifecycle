@@ -79,6 +79,7 @@ struct LifecycleConfig {
     bool enableParallelInit = false;
     bool enableParallelDeinit = false;
     bool enableParallelReinit = false;
+    bool dependencyReinitialization = false;
     bool rollbackOnInitFailure = true;
     bool continueTeardownOnFailure = false;
     uint16_t maxNodes = 64;

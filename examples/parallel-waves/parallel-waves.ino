@@ -44,6 +44,7 @@ void setup() {
     cfg.enableParallelInit = true;
     cfg.enableParallelDeinit = true;
     cfg.enableParallelReinit = true;
+    cfg.dependencyReinitialization = true;
 
     lifecycle.configure(cfg);
     lifecycle.init({"core"});

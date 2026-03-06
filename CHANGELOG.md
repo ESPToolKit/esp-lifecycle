@@ -24,11 +24,13 @@ All notable changes to this project will be documented in this file.
   - `parallel-waves`
   - `failure-policy`
   - `reload-burst`
+- `LifecycleConfig::dependencyReinitialization` (default `false`) to control partial reinit closure expansion.
 
 ### Changed
 - Public lifecycle targeting is now node-name based.
 - Partial deinitialize expands selected nodes with transitive dependents.
-- Partial reinitialize expands selected nodes with dependents and required dependencies.
+- Partial reinitialize targets selected nodes by default.
+- Partial reinitialize closure (dependents + required dependencies) is now opt-in via `dependencyReinitialization=true`.
 - Reload listener now consumes node-name payloads and coalesces deduplicated names.
 
 ### Removed

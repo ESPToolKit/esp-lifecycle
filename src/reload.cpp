@@ -123,7 +123,7 @@ void ESPLifecycle::scheduleNodeReinitialize(const std::vector<const char*>& node
         workerConfig.name = "lifecycle-reload";
     }
 
-    WorkerResult spawnResult = config.worker->spawnExt(
+    WorkerResult spawnResult = config.worker->spawn(
         [this]() {
             listenerWorkerLoop();
         },
@@ -185,7 +185,7 @@ void ESPLifecycle::listenerWorkerLoop() {
                 } else {
                     workerConfig.name = "lifecycle-reload";
                 }
-                (void)config.worker->spawnExt([this]() { listenerWorkerLoop(); }, workerConfig);
+                (void)config.worker->spawn([this]() { listenerWorkerLoop(); }, workerConfig);
             } else {
                 listenerWorkerRunning = false;
             }

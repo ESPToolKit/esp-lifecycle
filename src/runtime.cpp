@@ -518,7 +518,7 @@ LifecycleResult ESPLifecycle::runParallelBatch(const std::vector<size_t>& batch,
 
         setState(state(), nodes[nodeIndex].name.c_str());
 
-        WorkerResult workerResult = config.worker->spawnExt(
+        WorkerResult workerResult = config.worker->spawn(
             [this, nodeIndex, initializePhase, &resultMutex, &results]() {
                 bool ok = false;
                 if( initializePhase ){

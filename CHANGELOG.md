@@ -44,6 +44,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Error reporting now uses node-focused resolution failures (`UnknownNode`, `NodeResolutionFailed`).
+- `snapshotJson()` now exposes `phaseCompleted` as an explicit boolean so JSON consumers do not need to infer completion from the numeric `completed` counter.
 
 ## [0.1.0] - 2026-03-05
 ### Added

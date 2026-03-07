@@ -50,6 +50,12 @@ const char* errorCodeToText(LifecycleErrorCode code) {
     return "unknown";
 }
 
+bool isTransitionState(LifecycleState state) {
+    return state == LifecycleState::Initializing ||
+           state == LifecycleState::Reinitializing ||
+           state == LifecycleState::Deinitializing;
+}
+
 }  // namespace
 
 void ESPLifecycle::setState(LifecycleState stateValue, const char* activeNode) {
@@ -102,6 +108,7 @@ JsonDocument ESPLifecycle::snapshotJson() const {
     document["state"] = stateToText(copy.state);
     document["activeNode"] = activeNode.empty() ? nullptr : activeNode.c_str();
     document["completed"] = copy.completed;
+    document["phaseCompleted"] = !isTransitionState(copy.state);
     document["total"] = copy.total;
     document["failed"] = copy.failed;
     document["errorCode"] = errorCodeToText(copy.errorCode);

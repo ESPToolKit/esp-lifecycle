@@ -94,11 +94,13 @@ serializeJson(json, Serial);
 ```
 
 `snapshotJson()` includes:
-- `state`, `activeNode`, `completed`, `total`, `failed`, `errorCode`, `updatedAtMs`
+- `state`, `activeNode`, `completed`, `phaseCompleted`, `total`, `failed`, `errorCode`, `updatedAtMs`
 - `phase` (`initialize|deinitialize|reinitialize|idle`)
 - `lastOperationOk`
 - `lastError.nodeName`, `lastError.detail`
 - `parallel.enabled.init|deinit|reinit`
+
+`completed` is a numeric progress counter. Use `phaseCompleted` when you need a boolean that tells you whether the current transition has finished.
 
 ## Runtime API
 - `NodeBuilder& addTo(const char* section, const char* nodeName, std::function<bool()> initFn)`

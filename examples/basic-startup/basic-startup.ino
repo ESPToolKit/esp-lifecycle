@@ -39,6 +39,8 @@ void setup() {
     }
 
     JsonDocument snapshot = lifecycle.snapshotJson();
+    const bool phaseCompleted = snapshot["phaseCompleted"] | false;
+    Serial.printf("phase status: %s\n", phaseCompleted ? "completed" : "in progress");
     serializeJson(snapshot, Serial);
     Serial.println();
 

@@ -134,6 +134,13 @@ serializeJson(json, Serial);
 - `examples/failure-policy` - rollback and teardown failure policy behavior.
 - `examples/reload-burst` - listener burst coalescing and deduplicated node-name reloads.
 
+## Formatting Baseline
+
+This repository follows the firmware formatting baseline from `esptoolkit-template`:
+- `.clang-format` is the source of truth for C/C++/INO layout.
+- `.editorconfig` enforces tabs (`tab_width = 4`), LF endings, and final newline.
+- Format all tracked firmware sources with `bash scripts/format_cpp.sh`.
+
 ## License
 MIT - see [LICENSE.md](LICENSE.md).
 

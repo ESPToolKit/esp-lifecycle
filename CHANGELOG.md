@@ -38,6 +38,9 @@ All notable changes to this project will be documented in this file.
 - Scope-mask-based APIs:
   - `deinitializeByScopeMask(...)`
   - `reinitializeByScopeMask(...)`
+
+### Fixed
+- CI now pins PIOArduino Core to `v6.1.19` and installs the ESP32 platform via `pio pkg install`, restoring PlatformIO compatibility with the current `platform-espressif32` package.
   - `reinitializeByNodeNames(...)`
 - Node scope bit tagging API:
   - `NodeBuilder::reloadScope(...)`

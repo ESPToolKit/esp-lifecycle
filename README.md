@@ -1,3 +1,10 @@
+> [!WARNING]
+> This repository is deprecated and no longer maintained.
+>
+> Development continues in the completely reworked repository:
+> **[ZekStack/Phase](https://github.com/ZekStack/phase)**
+>
+
 # ESPLifecycle
 
 ESPLifecycle is the ESPToolKit lifecycle orchestrator for deterministic init, deinit, and node-targeted reinit.
